@@ -1420,10 +1420,6 @@ export default function App() {
   };
 
   const solicitarExclusaoProjeto = (project) => {
-    if (projetos.length <= 1) {
-      alert("Não é possível apagar todos os orçamentos.");
-      return;
-    }
     setProjetoParaExcluir(project);
     setTextoConfirmacaoExclusao("");
   };
@@ -1435,7 +1431,7 @@ export default function App() {
   };
 
   const removerProjeto = async (project) => {
-    if (!project || projetos.length <= 1) return;
+    if (!project) return;
     setBusy(true);
     setStatus(`Excluindo o orçamento "${project.nome}"...`);
     try {
@@ -1447,6 +1443,7 @@ export default function App() {
       setProjetos(nextProjects);
       setProjetoAtivoId(nextActiveId);
       delete projectHashesRef.current[project.id];
+      if (nextProjects.length === 0) setTab("projetos");
       await saveLocalSnapshot({
         cpus,
         projetos: nextProjects,
@@ -3658,6 +3655,7 @@ function ClientesTab({ clientes, projetos, onSalvar, saving, dirty }) {
   const [rascunho, setRascunho] = useState(null);
   const [mensagem, setMensagem] = useState("");
   const [ordenacao, setOrdenacao] = useState({ key: "nome", direction: "asc" });
+  const [clienteParaExcluir, setClienteParaExcluir] = useState(null);
 
   const clientesFiltrados = useMemo(() => {
     const termos = normalizarBusca(busca).split(/\s+/).filter(Boolean);
@@ -3740,6 +3738,22 @@ function ClientesTab({ clientes, projetos, onSalvar, saving, dirty }) {
   const quantidadeOrcamentos = (clienteId) =>
     (projetos || []).filter((projeto) => projeto?.clienteCadastro?.clienteId === clienteId).length;
 
+  const excluirCliente = async (cliente) => {
+    const vinculos = quantidadeOrcamentos(cliente.id);
+    if (vinculos > 0) {
+      setMensagem(`Não é possível excluir "${cliente.nome}" pois está vinculado a ${vinculos} orçamento(s).`);
+      setClienteParaExcluir(null);
+      return;
+    }
+    const proximosClientes = (clientes || []).filter((c) => c.id !== cliente.id);
+    const salvou = await onSalvar(proximosClientes);
+    if (salvou) {
+      if (rascunho?.id === cliente.id) setRascunho(null);
+      setMensagem(`Cliente "${cliente.nome}" excluído.`);
+    }
+    setClienteParaExcluir(null);
+  };
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.5fr)] gap-4 items-start">
       <div className="bg-white border border-stone-200 shadow-sm rounded-lg overflow-hidden">
@@ -3798,20 +3812,32 @@ function ClientesTab({ clientes, projetos, onSalvar, saving, dirty }) {
               const selecionado = rascunho?.id === cliente.id;
               const orcamentosVinculados = quantidadeOrcamentos(cliente.id);
               return (
-                <button
-                  type="button"
+                <div
                   key={cliente.id}
-                  onClick={() => editarCliente(cliente)}
-                  className={`w-full p-3 text-left hover:bg-stone-50 ${selecionado ? "bg-stone-100" : "bg-white"}`}
+                  className={`flex items-center gap-1 hover:bg-stone-50 ${selecionado ? "bg-stone-100" : "bg-white"}`}
                 >
-                  <span className="block text-sm font-semibold text-stone-800 truncate">{cliente.nome || "Cliente sem nome"}</span>
-                  <span className="mt-0.5 block text-[11px] text-stone-500 truncate">
-                    {cliente.documento || cliente.telefone || cliente.email || "Sem documento ou contato"}
-                  </span>
-                  <span className="mt-1 block text-[10px] text-stone-400">
-                    {orcamentosVinculados} orçamento(s) vinculado(s)
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => editarCliente(cliente)}
+                    className="flex-1 p-3 text-left min-w-0"
+                  >
+                    <span className="block text-sm font-semibold text-stone-800 truncate">{cliente.nome || "Cliente sem nome"}</span>
+                    <span className="mt-0.5 block text-[11px] text-stone-500 truncate">
+                      {cliente.documento || cliente.telefone || cliente.email || "Sem documento ou contato"}
+                    </span>
+                    <span className="mt-1 block text-[10px] text-stone-400">
+                      {orcamentosVinculados} orçamento(s) vinculado(s)
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setClienteParaExcluir(cliente); }}
+                    className="p-2 mr-1 text-stone-300 hover:text-red-500 shrink-0"
+                    title={`Excluir ${cliente.nome}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               );
             })
           )}
@@ -3898,7 +3924,7 @@ function ClientesTab({ clientes, projetos, onSalvar, saving, dirty }) {
               />
 
               {mensagem && (
-                <p className={`text-xs ${mensagem.startsWith("Cliente salvo") ? "text-emerald-700" : "text-red-600"}`}>
+                <p className={`text-xs ${mensagem.startsWith("Cliente salvo") || mensagem.includes("excluído") ? "text-emerald-700" : "text-red-600"}`}>
                   {mensagem}
                 </p>
               )}
@@ -3918,6 +3944,43 @@ function ClientesTab({ clientes, projetos, onSalvar, saving, dirty }) {
           </>
         )}
       </div>
+
+      {clienteParaExcluir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setClienteParaExcluir(null)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 text-red-600">
+              <Trash2 size={20} />
+              <h3 className="text-base font-semibold">Excluir cliente?</h3>
+            </div>
+            <p className="text-sm text-stone-600">
+              Deseja excluir permanentemente o cliente <strong>{clienteParaExcluir.nome}</strong>?
+            </p>
+            {quantidadeOrcamentos(clienteParaExcluir.id) > 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                Este cliente está vinculado a {quantidadeOrcamentos(clienteParaExcluir.id)} orçamento(s). Desvincule antes de excluir.
+              </p>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setClienteParaExcluir(null)}
+                className="px-4 py-2 text-sm font-medium border border-stone-300 rounded-lg hover:bg-stone-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => excluirCliente(clienteParaExcluir)}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40"
+              >
+                <Trash2 size={14} />
+                {saving ? "Excluindo..." : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
