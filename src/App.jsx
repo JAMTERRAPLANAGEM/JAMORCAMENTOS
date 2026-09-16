@@ -3159,18 +3159,6 @@ export default function App() {
                     onClick={async () => {
                       try {
                         if (!validarExportacao()) return;
-                        if (modeloPropostaAtivo === "collem") {
-                          const { gerarPropostaCollemDocx } = await import(
-                            "./propostas/collemProposal"
-                          );
-                          await gerarPropostaCollemDocx({
-                            projeto: projetoAtivo,
-                            cliente: clienteAtivo,
-                            totalGeral: bdiCalc.valorVenda,
-                          });
-                          return;
-                        }
-
                         const numeroProposta = clienteAtivo.numeroProposta || proximoNumeroProposta(projetos);
                         if (!clienteAtivo.numeroProposta) {
                           setClienteAtivo((prev) => ({ ...prev, numeroProposta }));
@@ -3217,17 +3205,6 @@ export default function App() {
                 <button
                   onClick={async () => {
                     if (!validarExportacao()) return;
-                    if (modeloPropostaAtivo === "collem") {
-                      const { gerarPropostaCollemPdf } = await import(
-                        "./propostas/collemProposal"
-                      );
-                      gerarPropostaCollemPdf({
-                        projeto: projetoAtivo,
-                        cliente: clienteAtivo,
-                        totalGeral: bdiCalc.valorVenda,
-                      });
-                      return;
-                    }
                     const numeroProposta = clienteAtivo.numeroProposta || proximoNumeroProposta(projetos);
                     if (!clienteAtivo.numeroProposta) {
                       setClienteAtivo((prev) => ({ ...prev, numeroProposta }));
@@ -4185,7 +4162,7 @@ function CadastroCliente({ projeto, cliente, clientes, setProjetos, setCliente, 
                 onChange={(e) => atualizarRegimeMateriais(e.target.value)}
                 className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm outline-none bg-white focus:border-stone-700 focus:ring-1 focus:ring-stone-700"
               >
-                <option value="alpha">Material incluso pela Alpha</option>
+                <option value="alpha">Material incluso pela JAM Terraplanagem</option>
                 <option value="cliente">Material por conta do cliente</option>
                 <option value="faturamentoDireto">Faturamento direto ao cliente</option>
               </select>
@@ -4207,7 +4184,7 @@ function CadastroCliente({ projeto, cliente, clientes, setProjetos, setCliente, 
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <CampoTextoCliente
-              label="Responsabilidade da Alpha"
+              label="Responsabilidade da JAM Terraplanagem"
               value={cliente.responsabilidadesAlpha || ""}
               onChange={(valor) => atualizarCampo("responsabilidadesAlpha", valor)}
               placeholder={RESPONSABILIDADES_ALPHA_PADRAO.join("\n")}
@@ -6387,7 +6364,7 @@ function Orcamento({ etapas, setEtapas, cpus, grandTotal, catalogMap, onUpsertPr
 /* ---------------- ABA PLANILHA DE BDI ---------------- */
 function BdiTab({ bdi, setBdi, bdiCalc, grandTotal }) {
   const faturamentoDireto = !!bdi.faturamentoDireto;
-  const collemAtivo = !!bdi.collemAtivo;
+  const collemAtivo = false;
   const collemX = bdi.collemX === "" ? "" : (bdi.collemX ?? 1);
   const collemY = bdi.collemY === "" ? "" : (bdi.collemY ?? 1);
 
@@ -6477,62 +6454,6 @@ function BdiTab({ bdi, setBdi, bdiCalc, grandTotal }) {
           />
           Habilitar Faturamento Direto (BDI Diferenciado para Materiais)
         </label>
-      </div>
-
-      <div className={`border rounded-lg p-4 transition-colors ${collemAtivo ? "border-amber-300 bg-amber-50/60" : "border-stone-200 bg-white"}`}>
-        <div className="flex justify-between items-start flex-wrap gap-3">
-          <div>
-            <h3 className="font-semibold text-sm text-stone-800">Condição comercial COLLEM</h3>
-            <p className="text-xs text-stone-500">Aplica os divisores X e Y sobre o preço de venda calculado com BDI.</p>
-          </div>
-          <label className="flex items-center gap-2 bg-white border border-stone-200 px-3 py-1.5 rounded-md cursor-pointer select-none hover:bg-stone-50 text-xs font-semibold text-stone-700">
-            <input
-              type="checkbox"
-              checked={collemAtivo}
-              onChange={(e) => setBdi(prev => ({
-                ...prev,
-                collemAtivo: e.target.checked,
-                collemX: num(prev.collemX) > 0 ? prev.collemX : 1,
-                collemY: num(prev.collemY) > 0 ? prev.collemY : 1,
-              }))}
-              className="w-4 h-4 accent-amber-600 rounded"
-            />
-            Ativar COLLEM
-          </label>
-        </div>
-
-        {collemAtivo && (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-[minmax(120px,180px)_minmax(120px,180px)_1fr] gap-3 items-end">
-            <label className="text-xs text-stone-600">
-              <span className="block mb-1 font-medium">Divisor X</span>
-              <input
-                type="number"
-                min="0.000001"
-                step="any"
-                value={collemX}
-                onChange={(e) => handleCollemChange("collemX", e.target.value)}
-                onBlur={(e) => normalizarDivisorCollem("collemX", e.target.value)}
-                className="w-full h-9 border border-amber-300 rounded-md px-2.5 bg-white text-sm font-mono outline-none focus:ring-1 focus:ring-amber-500"
-              />
-            </label>
-            <label className="text-xs text-stone-600">
-              <span className="block mb-1 font-medium">Divisor Y</span>
-              <input
-                type="number"
-                min="0.000001"
-                step="any"
-                value={collemY}
-                onChange={(e) => handleCollemChange("collemY", e.target.value)}
-                onBlur={(e) => normalizarDivisorCollem("collemY", e.target.value)}
-                className="w-full h-9 border border-amber-300 rounded-md px-2.5 bg-white text-sm font-mono outline-none focus:ring-1 focus:ring-amber-500"
-              />
-            </label>
-            <div className="min-h-9 rounded-md border border-amber-200 bg-white px-3 py-2 text-xs text-stone-600">
-              <span className="font-mono">R$ {fmt(bdiCalc.valorVendaBase)} ÷ {fmt(bdiCalc.collemX)} ÷ {fmt(bdiCalc.collemY)}</span>
-              <span className="font-semibold text-stone-900 ml-2">= R$ {fmt(bdiCalc.valorVendaBruto)}</span>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
