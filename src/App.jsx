@@ -425,6 +425,18 @@ const descontoNegociacaoProjeto = (projeto) =>
 const aplicarDescontoNegociacao = (valorBruto, desconto) =>
   arredondarMoeda(Math.max(0, num(valorBruto) - Math.max(0, numeroMoeda(desconto))));
 
+const medicaoAtualProjeto = (projeto) => Math.max(0, numeroMoeda(projeto?.medicaoAtual));
+const medicaoAcumuladaProjeto = (projeto) => Math.max(0, numeroMoeda(projeto?.medicaoAcumulada));
+const consolidarMedicaoProjeto = (projeto) => {
+  const atual = medicaoAtualProjeto(projeto);
+  if (atual === 0) return projeto;
+  return {
+    ...projeto,
+    medicaoAtual: 0,
+    medicaoAcumulada: arredondarMoeda(medicaoAcumuladaProjeto(projeto) + atual),
+  };
+};
+
 const VERSAO_NUMERACAO_PROPOSTAS = 1;
 const ANO_INICIAL_PROPOSTAS = 2026;
 const SEQUENCIA_INICIAL_PROPOSTAS = 74;
@@ -1073,7 +1085,7 @@ export default function App() {
 
           const atualizadoEm = new Date().toISOString();
           const projetosAtualizados = dados.projetos.map((item) =>
-            item.id === projectId ? { ...item, atualizadoEm } : item
+            item.id === projectId ? { ...consolidarMedicaoProjeto(item), atualizadoEm } : item
           );
           const projectAtualizado = projetosAtualizados.find(
             (item) => item.id === projectId
@@ -1105,9 +1117,7 @@ export default function App() {
       );
       setProjetos((prev) =>
         prev.map((item) =>
-          item.id === projectId
-            ? { ...item, atualizadoEm: projectSalvo.atualizadoEm }
-            : item
+          item.id === projectId ? projectSalvo : item
         )
       );
       projectHashesRef.current[projectId] = JSON.stringify(projectSalvo);
@@ -1754,6 +1764,9 @@ export default function App() {
           valorVendaBruto,
           descontoNegociacao,
           valorVenda,
+          medicaoAtual: medicaoAtualProjeto(projeto),
+          medicaoAcumulada: medicaoAcumuladaProjeto(projeto),
+          saldoContrato: Math.max(0, arredondarMoeda(valorVenda - medicaoAcumuladaProjeto(projeto))),
           statusProjeto,
           indiceOriginal,
           dataOrdenacao:
@@ -1798,8 +1811,9 @@ export default function App() {
     return ordenarLista(filtrados, ordenacaoProjetos, (resumo, key) => {
       if (key === "numero") return resumo.cliente.numeroProposta || "";
       if (key === "orcamento") return resumo.projeto.nome || "";
-      if (key === "cliente") return `${resumo.cliente.nome || ""} ${resumo.cliente.local || ""}`;
-      if (key === "desconto") return resumo.descontoNegociacao;
+      if (key === "medicaoAtual") return resumo.medicaoAtual;
+      if (key === "medicaoAcumulada") return resumo.medicaoAcumulada;
+      if (key === "saldoContrato") return resumo.saldoContrato;
       if (key === "custoDireto") return resumo.custoDireto;
       if (key === "valorVenda") return resumo.valorVenda;
       if (key === "status") return resumo.statusProjeto.label || "";
@@ -1885,6 +1899,15 @@ export default function App() {
       ...dadosAtuais,
       projetos: projetosAtualizados,
     };
+    setProjetos(projetosAtualizados);
+  };
+
+  const atualizarMedicaoAtualProjeto = (projectId, valor) => {
+    const dadosAtuais = dadosAtuaisRef.current;
+    const projetosAtualizados = dadosAtuais.projetos.map((projeto) =>
+      projeto.id === projectId ? { ...projeto, medicaoAtual: valor } : projeto
+    );
+    dadosAtuaisRef.current = { ...dadosAtuais, projetos: projetosAtualizados };
     setProjetos(projetosAtualizados);
   };
 
@@ -2434,7 +2457,9 @@ export default function App() {
                     <option value="numero:asc">Número crescente</option>
                     <option value="numero:desc">Número decrescente</option>
                     <option value="orcamento:asc">Orçamento A–Z</option>
-                    <option value="cliente:asc">Cliente A–Z</option>
+                    <option value="medicaoAtual:desc">Maior medição atual</option>
+                    <option value="medicaoAcumulada:desc">Maior acumulado</option>
+                    <option value="saldoContrato:asc">Menor saldo de contrato</option>
                     <option value="status:asc">Status A–Z</option>
                     <option value="valorVenda:desc">Maior venda</option>
                     <option value="valorVenda:asc">Menor venda</option>
@@ -2460,12 +2485,13 @@ export default function App() {
               ) : (
                 <>
                   <div className="hidden xl:block overflow-x-auto">
-                    <div className="min-w-[1060px]">
-                      <div className="grid grid-cols-[88px_minmax(145px,1.2fr)_minmax(165px,1.3fr)_90px_105px_115px_80px_105px_108px] gap-3 px-5 py-3 bg-stone-50 border-b border-stone-200 text-[10px] font-semibold uppercase text-stone-500">
+                    <div className="min-w-[1250px]">
+                      <div className="grid grid-cols-[88px_minmax(175px,1.4fr)_110px_110px_110px_105px_115px_80px_105px_108px] gap-3 px-5 py-3 bg-stone-50 border-b border-stone-200 text-[10px] font-semibold uppercase text-stone-500">
                         <BotaoOrdenacao coluna="numero" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor}>Número</BotaoOrdenacao>
                         <BotaoOrdenacao coluna="orcamento" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor}>Orçamento</BotaoOrdenacao>
-                        <BotaoOrdenacao coluna="cliente" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor}>Cliente / Local</BotaoOrdenacao>
-                        <BotaoOrdenacao coluna="desconto" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor} align="right" direcaoInicial="desc">Desconto</BotaoOrdenacao>
+                        <BotaoOrdenacao coluna="medicaoAtual" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor} align="right" direcaoInicial="desc">Medição atual</BotaoOrdenacao>
+                        <BotaoOrdenacao coluna="medicaoAcumulada" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor} align="right" direcaoInicial="desc">Acumulado</BotaoOrdenacao>
+                        <BotaoOrdenacao coluna="saldoContrato" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor} align="right" direcaoInicial="desc">Saldo contrato</BotaoOrdenacao>
                         <BotaoOrdenacao coluna="custoDireto" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor} align="right" direcaoInicial="desc">Custo direto</BotaoOrdenacao>
                         <BotaoOrdenacao coluna="valorVenda" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor} align="right" direcaoInicial="desc">Preço de venda</BotaoOrdenacao>
                         <BotaoOrdenacao coluna="dataOrdenacao" ordenacao={ordenacaoProjetos} onOrdenar={ordenarProjetosPor} direcaoInicial="desc">Atualizado</BotaoOrdenacao>
@@ -2480,6 +2506,8 @@ export default function App() {
                           custoDireto,
                           descontoNegociacao,
                           valorVenda,
+                          medicaoAcumulada,
+                          saldoContrato,
                           statusProjeto,
                         } = resumo;
                         const isActive = projeto.id === projetoAtivoId;
@@ -2497,7 +2525,7 @@ export default function App() {
                                 abrirProjetoDaLista(projeto, cliente);
                               }
                             }}
-                            className={`grid grid-cols-[88px_minmax(145px,1.2fr)_minmax(165px,1.3fr)_90px_105px_115px_80px_105px_108px] gap-3 px-5 py-4 border-b border-stone-200 last:border-b-0 items-center cursor-pointer outline-none transition-colors border-l-4 ${
+                          className={`grid grid-cols-[88px_minmax(175px,1.4fr)_110px_110px_110px_105px_115px_80px_105px_108px] gap-3 px-5 py-4 border-b border-stone-200 last:border-b-0 items-center cursor-pointer outline-none transition-colors border-l-4 ${
                               isSentToClient
                                 ? "border-l-amber-600 bg-yellow-300 hover:bg-yellow-200 focus:bg-yellow-200"
                                 : isActive
@@ -2516,36 +2544,22 @@ export default function App() {
                                 {cliente.nome || "Cliente não cadastrado"}
                               </p>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-xs text-stone-700 truncate">
-                                {cliente.nome || "Cliente não cadastrado"}
-                              </p>
-                              <p className="text-[11px] text-stone-400 mt-1 flex items-center gap-1 min-w-0">
-                                <MapPin size={11} className="shrink-0" />
-                                <span className="truncate">
-                                  {cliente.local || "Local da obra pendente"}
-                                </span>
-                              </p>
-                            </div>
                             <div>
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                value={projeto.descontoNegociacao ?? ""}
+                                value={projeto.medicaoAtual ?? ""}
                                 onClick={(e) => e.stopPropagation()}
                                 onKeyDown={(e) => e.stopPropagation()}
-                                onChange={(e) => atualizarDescontoProjeto(projeto.id, e.target.value)}
+                                onChange={(e) => atualizarMedicaoAtualProjeto(projeto.id, e.target.value)}
                                 onBlur={() => salvarProjeto(projeto.id)}
                                 placeholder="0,00"
-                                aria-label={`Desconto do orçamento ${projeto.nome}`}
+                                aria-label={`Medição atual do orçamento ${projeto.nome}`}
                                 className="w-full h-8 px-2 text-right text-xs font-mono bg-white border border-stone-300 rounded-md outline-none focus:border-stone-600"
                               />
-                              {descontoNegociacao > 0 && (
-                                <p className="mt-1 text-[9px] text-right text-red-600 font-mono">
-                                  - R$ {fmt(descontoNegociacao)}
-                                </p>
-                              )}
                             </div>
+                            <div className="text-xs text-right font-mono text-stone-700 whitespace-nowrap">R$ {fmt(medicaoAcumulada)}</div>
+                            <div className={`text-xs text-right font-mono font-semibold whitespace-nowrap ${saldoContrato < 0 ? "text-red-600" : "text-emerald-700"}`}>R$ {fmt(saldoContrato)}</div>
                             <div className="text-xs text-right font-mono text-stone-600 whitespace-nowrap">
                               R$ {fmt(custoDireto)}
                             </div>
@@ -2632,8 +2646,9 @@ export default function App() {
                         projeto,
                         cliente,
                         custoDireto,
-                        descontoNegociacao,
                         valorVenda,
+                        medicaoAcumulada,
+                        saldoContrato,
                         statusProjeto,
                       } = resumo;
                       const isActive = projeto.id === projetoAtivoId;
@@ -2698,24 +2713,27 @@ export default function App() {
                             </select>
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-stone-200/70">
+                          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-4 pt-3 border-t border-stone-200/70">
                             <div>
-                              <p className="text-[9px] uppercase text-stone-400">Desconto</p>
+                              <p className="text-[9px] uppercase text-stone-400">Medição atual</p>
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                value={projeto.descontoNegociacao ?? ""}
-                                onChange={(e) => atualizarDescontoProjeto(projeto.id, e.target.value)}
+                                value={projeto.medicaoAtual ?? ""}
+                                onChange={(e) => atualizarMedicaoAtualProjeto(projeto.id, e.target.value)}
                                 onBlur={() => salvarProjeto(projeto.id)}
                                 placeholder="0,00"
-                                aria-label={`Desconto do orçamento ${projeto.nome}`}
+                                aria-label={`Medição atual do orçamento ${projeto.nome}`}
                                 className="mt-1 w-full h-8 px-2 text-right text-xs font-mono bg-white border border-stone-300 rounded-md outline-none focus:border-stone-600"
                               />
-                              {descontoNegociacao > 0 && (
-                                <p className="mt-1 text-[9px] text-red-600 font-mono whitespace-nowrap">
-                                  - R$ {fmt(descontoNegociacao)}
-                                </p>
-                              )}
+                            </div>
+                            <div>
+                              <p className="text-[9px] uppercase text-stone-400">Acumulado</p>
+                              <p className="text-xs font-mono text-stone-700 mt-0.5 whitespace-nowrap">R$ {fmt(medicaoAcumulada)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] uppercase text-stone-400">Saldo contrato</p>
+                              <p className={`text-xs font-mono font-semibold mt-0.5 whitespace-nowrap ${saldoContrato < 0 ? "text-red-600" : "text-emerald-700"}`}>R$ {fmt(saldoContrato)}</p>
                             </div>
                             <div>
                               <p className="text-[9px] uppercase text-stone-400">Custo direto</p>
